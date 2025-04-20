@@ -53,7 +53,7 @@ jobs:
       # Step 7: Update deployment image tag
       - name: Update deployment image tag
         run: |
-          sed -i "s|victorwasonga/game-2048:latest|${{ secrets.DOCKER_USERNAME }}/2048-game:${{ github.sha }}|g" k8s/deployment.yaml
+          sed -i "s|victorwasonga/2048-game:{{IMAGE_TAG}}|${{ secrets.DOCKER_USERNAME }}/2048-game:${{ github.sha }}|g" k8s/deployment.yaml
 
       # Step 8: Deploy to EKS
       - name: Deploy to EKS
