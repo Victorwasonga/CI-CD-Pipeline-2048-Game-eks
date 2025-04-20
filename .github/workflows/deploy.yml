@@ -1,4 +1,4 @@
-name: Deploy 2048 Game App to EKS with Fargate
+name: CI/CD Pipeline - Deploy 2048 Game to EKS
 
 on:
   push:
@@ -6,17 +6,18 @@ on:
       - main
 
 env:
-  ECR_REGISTRY: ${{ secrets.ECR_REGISTRY }}
+  AWS_REGION: us-east-1
+  CLUSTER_NAME: serverless-game-cluster
   DOCKERHUB_USERNAME: victorwasonga
   DOCKERHUB_REPO: game-2048-eks
 
 jobs:
-  build-and-deploy:
+  deploy:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -27,30 +28,42 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Generate Docker image tag
-        id: vars
-        run: echo "IMAGE_TAG=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Update kubeconfig
+        run: |
+          aws eks update-kubeconfig --region $AWS_REGION --name $CLUSTER_NAME
+
+      - name: Generate Image Tag
+        id: image_tag
+        run: |
+          echo "IMAGE_TAG=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
 
       - name: Build Docker image
         run: |
           docker build -t $DOCKERHUB_USERNAME/$DOCKERHUB_REPO:$IMAGE_TAG .
 
-      - name: Scan image with Trivy
-        uses: aquasecurity/trivy-action@v0.14.0
+      - name: Scan Docker image with Trivy
+        uses: aquasecurity/trivy-action@master
         with:
           image-ref: ${{ env.DOCKERHUB_USERNAME }}/${{ env.DOCKERHUB_REPO }}:${{ env.IMAGE_TAG }}
-          format: 'table'
-          exit-code: '0'
+          format: table
+          exit-code: 0
+          severity: CRITICAL,HIGH
 
-      - name: Push image to Docker Hub
+      - name: Push Docker image to Docker Hub
         run: |
           docker push $DOCKERHUB_USERNAME/$DOCKERHUB_REPO:$IMAGE_TAG
-
-      - name: Set up kubectl
-        uses: azure/setup-kubectl@v3
-        with:
-          version: 'v1.29.0'
 
       - name: Update Kubernetes deployment
         run: |
           kubectl set image deployment/game-2048-deployment game-2048=$DOCKERHUB_USERNAME/$DOCKERHUB_REPO:$IMAGE_TAG -n game-2048
+
+      - name: Force rollout of deployment to apply new image
+        run: |
+          kubectl rollout restart deployment game-2048-deployment -n game-2048
