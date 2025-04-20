@@ -1,12 +1,10 @@
-name: CI/CD Pipeline for 2048 Game
-
 on:
   push:
     branches:
-      - main  # Trigger on push to main branch
+      - master  # Trigger on push to master branch
   pull_request:
     branches:
-      - main  # Trigger on PRs to the main branch
+      - master  # Trigger on PRs to master
 
 jobs:
   build-and-push:
