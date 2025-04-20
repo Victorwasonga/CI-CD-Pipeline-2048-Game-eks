@@ -29,9 +29,9 @@ jobs:
 
     # Step 5: Scan the Docker image with Trivy
     - name: Scan Docker image with Trivy
-      uses: aquasecurity/trivy-action@v0.3.0
+      uses: aquasecurity/trivy-action@master
       with:
-        image: ${{ secrets.DOCKER_USERNAME }}/2048-game:$GITHUB_SHA
+        image-ref: ${{ secrets.DOCKER_USERNAME }}/2048-game:$GITHUB_SHA
         format: 'table'
         exit-code: '1'
         severity: 'HIGH,CRITICAL'
