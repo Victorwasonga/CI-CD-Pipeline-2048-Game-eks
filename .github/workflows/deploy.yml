@@ -1,69 +1,61 @@
-name: CI/CD Pipeline - Deploy 2048 Game to EKS
+name: Build and Deploy to EKS (Fargate)
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
 
 env:
-  AWS_REGION: us-east-1
-  CLUSTER_NAME: serverless-game-cluster
-  DOCKERHUB_USERNAME: victorwasonga
-  DOCKERHUB_REPO: game-2048-eks
+  IMAGE_NAME: 2048-game
+  ECR_REGISTRY: docker.io
+  DEPLOYMENT_FILE: k8s/deployment.yaml
+  NAMESPACE: game-2048
 
 jobs:
-  deploy:
+  build-and-deploy:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+    - name: Checkout Code
+      uses: actions/checkout@v3
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
 
-      - name: Log in to Docker Hub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+    - name: Log in to DockerHub
+      uses: docker/login-action@v2
+      with:
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v2
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
+    - name: Build Docker Image
+      run: |
+        docker build -t ${{ secrets.DOCKER_USERNAME }}/$IMAGE_NAME:${{ github.sha }} .
 
-      - name: Update kubeconfig
-        run: |
-          aws eks update-kubeconfig --region $AWS_REGION --name $CLUSTER_NAME
+    - name: Scan Docker Image with Trivy
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: '${{ secrets.DOCKER_USERNAME }}/$IMAGE_NAME:${{ github.sha }}'
+        format: 'table'
+        exit-code: '0'
+        ignore-unfixed: true
 
-      - name: Generate Image Tag
-        id: image_tag
-        run: |
-          echo "IMAGE_TAG=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+    - name: Push Docker Image to Docker Hub
+      run: |
+        docker push ${{ secrets.DOCKER_USERNAME }}/$IMAGE_NAME:${{ github.sha }}
 
-      - name: Build Docker image
-        run: |
-          docker build -t $DOCKERHUB_USERNAME/$DOCKERHUB_REPO:$IMAGE_TAG .
+    - name: Update image tag in deployment.yaml
+      run: |
+        sed -i "s|victorwasonga/game-2048:.*|${{ secrets.DOCKER_USERNAME }}/$IMAGE_NAME:${{ github.sha }}|g" $DEPLOYMENT_FILE
 
-      - name: Scan Docker image with Trivy
-        uses: aquasecurity/trivy-action@master
-        with:
-          image-ref: ${{ env.DOCKERHUB_USERNAME }}/${{ env.DOCKERHUB_REPO }}:${{ env.IMAGE_TAG }}
-          format: table
-          exit-code: 0
-          severity: CRITICAL,HIGH
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v2
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: us-east-1
 
-      - name: Push Docker image to Docker Hub
-        run: |
-          docker push $DOCKERHUB_USERNAME/$DOCKERHUB_REPO:$IMAGE_TAG
+    - name: Update kubeconfig
+      run: aws eks update-kubeconfig --region us-east-1 --name serverless-game-cluster
 
-      - name: Update Kubernetes deployment
-        run: |
-          kubectl set image deployment/game-2048-deployment game-2048=$DOCKERHUB_USERNAME/$DOCKERHUB_REPO:$IMAGE_TAG -n game-2048
-
-      - name: Force rollout of deployment to apply new image
-        run: |
-          kubectl rollout restart deployment game-2048-deployment -n game-2048
+    - name: Deploy Updated Deployment Only
+      run: kubectl apply -f $DEPLOYMENT_FILE -n $NAMESPACE
