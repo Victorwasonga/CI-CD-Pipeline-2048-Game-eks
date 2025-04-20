@@ -1,0 +1,20 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: game-2048-deployment
+  namespace: game-2048
+spec:
+  replicas: 5
+  selector:
+    matchLabels:
+      app: game-2048
+  template:
+    metadata:
+      labels:
+        app: game-2048
+    spec:
+      containers:
+        - name: game-2048
+          image: victorwasonga/2048-game:{{IMAGE_TAG}}
+          ports:
+            - containerPort: 5000
