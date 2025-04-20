@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>2048 - Victor Edition</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <h1>Hello Victor, CICD PIPELINE implemened for this app on Kubernetes cluster 🎉</h1>
+
+    <div class="grid">
+        {% for row in grid %}
+            <div class="row">
+                {% for cell in row %}
+                    <div class="cell">{{ cell if cell != 0 else "" }}</div>
+                {% endfor %}
+            </div>
+        {% endfor %}
+    </div>
+
+    <div class="controls">
+        <form action="{{ url_for('move', direction='up') }}" method="post">
+            <button>↑</button>
+        </form>
+        <form action="{{ url_for('move', direction='left') }}" method="post">
+            <button>←</button>
+        </form>
+        <form action="{{ url_for('move', direction='down') }}" method="post">
+            <button>↓</button>
+        </form>
+        <form action="{{ url_for('move', direction='right') }}" method="post">
+            <button>→</button>
+        </form>
+        <form action="{{ url_for('reset') }}">
+            <button>Reset</button>
+        </form>
+    </div>
+</body>
+</html>
