@@ -3,10 +3,10 @@ name: CI/CD Pipeline for 2048 Game
 on:
   push:
     branches:
-      - master  # Trigger on push to master branch
+      - master
   pull_request:
     branches:
-      - master  # Trigger on PRs to master
+      - master
 
 jobs:
   build-and-push:
@@ -27,14 +27,9 @@ jobs:
       # Step 3: Build Docker image
       - name: Build Docker image
         run: |
-          docker build -t ${{ secrets.DOCKER_USERNAME }}/2048-game:${{ github.sha }} .
+          docker build -t ${{ secrets.DOCKER_USERNAME }}/2048-game:$GITHUB_SHA .
 
-      # Step 4: Push Docker image to Docker Hub
-      - name: Push Docker image to Docker Hub
-        run: |
-          docker push ${{ secrets.DOCKER_USERNAME }}/2048-game:${{ github.sha }}
-
-      # Step 5: Scan Docker image with Trivy
+      # Step 4: Scan Docker image with Trivy
       - name: Scan Docker image with Trivy
         uses: aquasecurity/trivy-action@master
         with:
@@ -43,7 +38,7 @@ jobs:
           exit-code: '0'
           severity: 'HIGH,CRITICAL'
 
-      # Step 6: Configure AWS credentials for EKS
+      # Step 5: Configure AWS credentials for EKS
       - name: Configure AWS credentials for EKS
         uses: aws-actions/configure-aws-credentials@v2
         with:
@@ -51,16 +46,16 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
 
-      # Step 7: Update kubeconfig for EKS cluster
+      # Step 6: Update kubeconfig for EKS cluster
       - name: Update kubeconfig for EKS cluster
         run: aws eks update-kubeconfig --name serverless-game-cluster --region us-east-1
 
-      # Step 8: Replace image tag in deployment manifest
+      # Step 7: Update deployment image tag
       - name: Update deployment image tag
         run: |
           sed -i "s|victorwasonga/game-2048:latest|${{ secrets.DOCKER_USERNAME }}/2048-game:${{ github.sha }}|g" k8s/deployment.yaml
 
-      # Step 9: Deploy updated Deployment to EKS
-      - name: Deploy updated Deployment to EKS
+      # Step 8: Deploy to EKS
+      - name: Deploy to EKS
         run: |
           kubectl apply -f k8s/deployment.yaml
