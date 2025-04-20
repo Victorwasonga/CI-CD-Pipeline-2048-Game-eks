@@ -42,6 +42,17 @@ jobs:
         run: |
           docker push $DOCKER_IMAGE:$IMAGE_TAG
 
+      - name: Set up AWS EKS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1  # Replace with your region
+
+      - name: Update kubeconfig for EKS
+        run: |
+          aws eks update-kubeconfig --name game-2048-cluster --region us-east-1
+
       - name: Update Kubernetes deployment
         run: |
           sed -i "s|image:.*|image: $DOCKER_IMAGE:$IMAGE_TAG|g" k8s/deployment.yaml
